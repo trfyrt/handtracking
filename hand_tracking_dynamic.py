@@ -65,9 +65,8 @@ def main():
 
     detector = EfficientHandDetector()
     pTime = 0
-    key_timers = {}
-    repeat_delay_arrow = 0.1
 
+    # Status boolean tombol hold
     key_hold_status = {
         '`': False,
         'enter': False,
@@ -76,6 +75,22 @@ def main():
         'j': False,
         'k': False,
     }
+
+    key_temp = {
+        '`': False,
+        'enter': False,
+        'd': False,
+        'f': False,
+        'j': False,
+        'k': False,
+    }
+
+    last_arrow_time = {
+        'up': 0,
+        'down': 0
+    }
+
+    repeat_delay_arrow = 0.1
 
     while True:
         success, frame = cap.read()
@@ -109,48 +124,48 @@ def main():
 
                 # Press-and-release: UP
                 if 500 <= cx <= 600 and 180 <= cy <= 240:
-                    last_time = key_timers.get('up', 0)
-                    if now - last_time > repeat_delay_arrow:
+                    if now - last_arrow_time['up'] > repeat_delay_arrow:
                         keyboard.press_and_release('up')
-                        key_timers['up'] = now
+                        last_arrow_time['up'] = now
                         cv2.putText(frame, "UP", (cx - 20, cy - 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
 
                 # Press-and-release: DOWN
                 if 500 <= cx <= 600 and 260 <= cy <= 320:
-                    last_time = key_timers.get('down', 0)
-                    if now - last_time > repeat_delay_arrow:
+                    if now - last_arrow_time['down'] > repeat_delay_arrow:
                         keyboard.press_and_release('down')
-                        key_timers['down'] = now
+                        last_arrow_time['down'] = now
                         cv2.putText(frame, "DOWN", (cx - 30, cy - 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
 
-                # Hold piano key
+                # Detect area dfjk
                 key = get_key_from_position(cx, cy)
                 if key:
                     touched_keys.add(key)
                     cv2.putText(frame, f"{key.upper()}", (cx - 30, cy - 50),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
 
-        # Process key holds and releases
-        for k in key_hold_status:
-            if k in touched_keys:
-                if not key_hold_status[k]:
-                    keyboard.press(k)
-                    key_hold_status[k] = True
-            else:
-                if key_hold_status[k]:
-                    keyboard.release(k)
-                    key_hold_status[k] = False
+        # Hold logic pakai boolean
+        for key in key_temp:
+            is_touched = key in touched_keys
 
-        # FPS display
+            if is_touched != key_temp[key]:
+                if is_touched:
+                    keyboard.press(key)
+                    key_hold_status[key] = True
+                else:
+                    keyboard.release(key)
+                    key_hold_status[key] = False
+                key_temp[key] = is_touched  # update temp state
+
+        # FPS
         cTime = time.time()
         fps = 1 / (cTime - pTime + 1e-5)
         pTime = cTime
         cv2.putText(frame, f'FPS: {int(fps)}', (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-        cv2.imshow("Piano Tiles with Triggers", frame)
+        cv2.imshow("Piano Tiles with Hold System", frame)
         if cv2.waitKey(1) & 0xFF == 27:
             break
 
