@@ -67,12 +67,16 @@ def main():
     pTime = 0
     key_timers = {}
 
-    repeat_delay_piano = 0.045
-    repeat_delay_arrow = 0.1
+    repeat_delay_arrow = 0.25  # UP/DOWN delay
 
+    # Semua tombol mode hold
     key_hold_status = {
         '`': False,
-        'enter': False
+        'enter': False,
+        'd': False,
+        'f': False,
+        'j': False,
+        'k': False
     }
 
     while True:
@@ -92,7 +96,7 @@ def main():
                 cx, cy = detector.get_fingertip(frame, hand_landmarks)
                 cv2.circle(frame, (cx, cy), 10, (0, 255, 0), cv2.FILLED)
 
-                # Backtick (HOLD)
+                # Backtick HOLD
                 if 20 <= cx <= 80 and 20 <= cy <= 80:
                     if not key_hold_status['`']:
                         keyboard.press('`')
@@ -104,7 +108,7 @@ def main():
                         keyboard.release('`')
                         key_hold_status['`'] = False
 
-                # ENTER (HOLD)
+                # ENTER HOLD
                 if 500 <= cx <= 600 and 100 <= cy <= 160:
                     if not key_hold_status['enter']:
                         keyboard.press('enter')
@@ -116,7 +120,7 @@ def main():
                         keyboard.release('enter')
                         key_hold_status['enter'] = False
 
-                # UP (dengan delay lebih lama)
+                # UP with delay
                 if 500 <= cx <= 600 and 180 <= cy <= 240:
                     last_time = key_timers.get('up', 0)
                     if now - last_time > repeat_delay_arrow:
@@ -125,7 +129,7 @@ def main():
                         cv2.putText(frame, "UP", (cx - 20, cy - 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
 
-                # DOWN (dengan delay lebih lama)
+                # DOWN with delay
                 if 500 <= cx <= 600 and 260 <= cy <= 320:
                     last_time = key_timers.get('down', 0)
                     if now - last_time > repeat_delay_arrow:
@@ -134,20 +138,21 @@ def main():
                         cv2.putText(frame, "DOWN", (cx - 30, cy - 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
 
-                # Piano Tiles (d, f, j, k) dengan delay cepat
+                # Piano HOLD keys (d, f, j, k)
                 key = get_key_from_position(cx, cy)
-                last_time = key_timers.get(key, 0)
-
-                if key and now - last_time > repeat_delay_piano:
-                    keyboard.press_and_release(key)
-                    key_timers[key] = now
-                    cv2.putText(frame, f"{key}", (cx - 30, cy - 50),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-                elif not key:
-                    for k in ['d', 'f', 'j', 'k']:
-                        key_timers.pop(k, None)
+                for k in ['d', 'f', 'j', 'k']:
+                    if key == k:
+                        if not key_hold_status[k]:
+                            keyboard.press(k)
+                            key_hold_status[k] = True
+                            cv2.putText(frame, f"{k.upper()}", (cx - 30, cy - 50),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                    else:
+                        if key_hold_status[k]:
+                            keyboard.release(k)
+                            key_hold_status[k] = False
         else:
-            # Jika tidak ada tangan dalam frame, pastikan ` dan enter dilepas
+            # Tidak ada tangan: pastikan semua tombol HOLD dilepas
             for k in key_hold_status:
                 if key_hold_status[k]:
                     keyboard.release(k)
