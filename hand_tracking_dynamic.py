@@ -66,17 +66,15 @@ def main():
     detector = EfficientHandDetector()
     pTime = 0
     key_timers = {}
+    repeat_delay_arrow = 0.1
 
-    repeat_delay_arrow = 0.25  # UP/DOWN delay
-
-    # Semua tombol mode hold
     key_hold_status = {
         '`': False,
         'enter': False,
         'd': False,
         'f': False,
         'j': False,
-        'k': False
+        'k': False,
     }
 
     while True:
@@ -90,37 +88,26 @@ def main():
         draw_triggers(frame)
 
         now = time.time()
+        touched_keys = set()
 
         if result.multi_hand_landmarks:
             for hand_landmarks in result.multi_hand_landmarks:
                 cx, cy = detector.get_fingertip(frame, hand_landmarks)
                 cv2.circle(frame, (cx, cy), 10, (0, 255, 0), cv2.FILLED)
 
-                # Backtick HOLD
+                # Hold: `
                 if 20 <= cx <= 80 and 20 <= cy <= 80:
-                    if not key_hold_status['`']:
-                        keyboard.press('`')
-                        key_hold_status['`'] = True
+                    touched_keys.add('`')
                     cv2.putText(frame, "`", (cx - 30, cy - 15),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
-                else:
-                    if key_hold_status['`']:
-                        keyboard.release('`')
-                        key_hold_status['`'] = False
 
-                # ENTER HOLD
+                # Hold: ENTER
                 if 500 <= cx <= 600 and 100 <= cy <= 160:
-                    if not key_hold_status['enter']:
-                        keyboard.press('enter')
-                        key_hold_status['enter'] = True
+                    touched_keys.add('enter')
                     cv2.putText(frame, "ENTER", (cx - 40, cy - 15),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 150, 0), 2)
-                else:
-                    if key_hold_status['enter']:
-                        keyboard.release('enter')
-                        key_hold_status['enter'] = False
 
-                # UP with delay
+                # Press-and-release: UP
                 if 500 <= cx <= 600 and 180 <= cy <= 240:
                     last_time = key_timers.get('up', 0)
                     if now - last_time > repeat_delay_arrow:
@@ -129,7 +116,7 @@ def main():
                         cv2.putText(frame, "UP", (cx - 20, cy - 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
 
-                # DOWN with delay
+                # Press-and-release: DOWN
                 if 500 <= cx <= 600 and 260 <= cy <= 320:
                     last_time = key_timers.get('down', 0)
                     if now - last_time > repeat_delay_arrow:
@@ -138,26 +125,25 @@ def main():
                         cv2.putText(frame, "DOWN", (cx - 30, cy - 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
 
-                # Piano HOLD keys (d, f, j, k)
+                # Hold piano key
                 key = get_key_from_position(cx, cy)
-                for k in ['d', 'f', 'j', 'k']:
-                    if key == k:
-                        if not key_hold_status[k]:
-                            keyboard.press(k)
-                            key_hold_status[k] = True
-                            cv2.putText(frame, f"{k.upper()}", (cx - 30, cy - 50),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-                    else:
-                        if key_hold_status[k]:
-                            keyboard.release(k)
-                            key_hold_status[k] = False
-        else:
-            # Tidak ada tangan: pastikan semua tombol HOLD dilepas
-            for k in key_hold_status:
+                if key:
+                    touched_keys.add(key)
+                    cv2.putText(frame, f"{key.upper()}", (cx - 30, cy - 50),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+
+        # Process key holds and releases
+        for k in key_hold_status:
+            if k in touched_keys:
+                if not key_hold_status[k]:
+                    keyboard.press(k)
+                    key_hold_status[k] = True
+            else:
                 if key_hold_status[k]:
                     keyboard.release(k)
                     key_hold_status[k] = False
 
+        # FPS display
         cTime = time.time()
         fps = 1 / (cTime - pTime + 1e-5)
         pTime = cTime
