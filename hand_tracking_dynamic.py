@@ -33,6 +33,19 @@ def draw_virtual_tiles(frame):
         cv2.rectangle(frame, (x1, 360), (x2, 440), colors[i], 2)
         cv2.putText(frame, keys[i], (x1 + 40, 430), cv2.FONT_HERSHEY_SIMPLEX, 1, colors[i], 2)
 
+def draw_triggers(frame):
+    cv2.rectangle(frame, (20, 20), (80, 80), (100, 100, 255), 2)
+    cv2.putText(frame, '`', (45, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (100, 100, 255), 2)
+
+    cv2.rectangle(frame, (500, 100), (600, 160), (255, 150, 0), 2)
+    cv2.putText(frame, 'ENTER', (510, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 150, 0), 2)
+
+    cv2.rectangle(frame, (500, 180), (600, 240), (0, 255, 255), 2)
+    cv2.putText(frame, 'UP', (530, 230), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+
+    cv2.rectangle(frame, (500, 260), (600, 320), (0, 200, 255), 2)
+    cv2.putText(frame, 'DOWN', (510, 310), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 200, 255), 2)
+
 def get_key_from_position(x, y):
     if 360 <= y <= 440:
         if 100 <= x < 200:
@@ -45,7 +58,6 @@ def get_key_from_position(x, y):
             return 'k'
     return None
 
-
 def main():
     cap = cv2.VideoCapture(0)
     cap.set(3, 640)
@@ -53,42 +65,93 @@ def main():
 
     detector = EfficientHandDetector()
     pTime = 0
+    key_timers = {}
+
+    repeat_delay_piano = 0.045
+    repeat_delay_arrow = 0.1
+
+    key_hold_status = {
+        '`': False,
+        'enter': False
+    }
 
     while True:
         success, frame = cap.read()
         if not success:
             break
 
-        frame = cv2.flip(frame, 1)  # ✅ Mirror mode aktif
-
+        frame = cv2.flip(frame, 1)
         result = detector.detect(frame)
         draw_virtual_tiles(frame)
+        draw_triggers(frame)
+
+        now = time.time()
 
         if result.multi_hand_landmarks:
             for hand_landmarks in result.multi_hand_landmarks:
                 cx, cy = detector.get_fingertip(frame, hand_landmarks)
                 cv2.circle(frame, (cx, cy), 10, (0, 255, 0), cv2.FILLED)
 
-                key = get_key_from_position(cx, cy)
-
-                repeat_delay = 0.045  # 50ms = 20x per detik
-
-                # Simpan waktu terakhir tombol ditekan ulang
-                if 'key_timers' not in locals():
-                    key_timers = {}
-
-                if key:
-                    now = time.time()
-                    last_time = key_timers.get(key, 0)
-
-                    if now - last_time > repeat_delay:
-                        keyboard.press_and_release(key)
-                        key_timers[key] = now
-
-                    cv2.putText(frame, f"{key}", (cx - 30, cy - 15),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                # Backtick (HOLD)
+                if 20 <= cx <= 80 and 20 <= cy <= 80:
+                    if not key_hold_status['`']:
+                        keyboard.press('`')
+                        key_hold_status['`'] = True
+                    cv2.putText(frame, "`", (cx - 30, cy - 15),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
                 else:
-                    key_timers.clear()
+                    if key_hold_status['`']:
+                        keyboard.release('`')
+                        key_hold_status['`'] = False
+
+                # ENTER (HOLD)
+                if 500 <= cx <= 600 and 100 <= cy <= 160:
+                    if not key_hold_status['enter']:
+                        keyboard.press('enter')
+                        key_hold_status['enter'] = True
+                    cv2.putText(frame, "ENTER", (cx - 40, cy - 15),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 150, 0), 2)
+                else:
+                    if key_hold_status['enter']:
+                        keyboard.release('enter')
+                        key_hold_status['enter'] = False
+
+                # UP (dengan delay lebih lama)
+                if 500 <= cx <= 600 and 180 <= cy <= 240:
+                    last_time = key_timers.get('up', 0)
+                    if now - last_time > repeat_delay_arrow:
+                        keyboard.press_and_release('up')
+                        key_timers['up'] = now
+                        cv2.putText(frame, "UP", (cx - 20, cy - 15),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+
+                # DOWN (dengan delay lebih lama)
+                if 500 <= cx <= 600 and 260 <= cy <= 320:
+                    last_time = key_timers.get('down', 0)
+                    if now - last_time > repeat_delay_arrow:
+                        keyboard.press_and_release('down')
+                        key_timers['down'] = now
+                        cv2.putText(frame, "DOWN", (cx - 30, cy - 15),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
+
+                # Piano Tiles (d, f, j, k) dengan delay cepat
+                key = get_key_from_position(cx, cy)
+                last_time = key_timers.get(key, 0)
+
+                if key and now - last_time > repeat_delay_piano:
+                    keyboard.press_and_release(key)
+                    key_timers[key] = now
+                    cv2.putText(frame, f"{key}", (cx - 30, cy - 50),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                elif not key:
+                    for k in ['d', 'f', 'j', 'k']:
+                        key_timers.pop(k, None)
+        else:
+            # Jika tidak ada tangan dalam frame, pastikan ` dan enter dilepas
+            for k in key_hold_status:
+                if key_hold_status[k]:
+                    keyboard.release(k)
+                    key_hold_status[k] = False
 
         cTime = time.time()
         fps = 1 / (cTime - pTime + 1e-5)
@@ -96,7 +159,7 @@ def main():
         cv2.putText(frame, f'FPS: {int(fps)}', (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-        cv2.imshow("Piano Tiles with 2 Hands", frame)
+        cv2.imshow("Piano Tiles with Triggers", frame)
         if cv2.waitKey(1) & 0xFF == 27:
             break
 
