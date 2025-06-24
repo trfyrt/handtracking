@@ -25,13 +25,42 @@ class EfficientHandDetector:
         return int(lm.x * w), int(lm.y * h)
 
 def draw_virtual_tiles(frame):
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 255, 255)]
+    h, w, _ = frame.shape
+    lane_width = 120
+    lane_height = 180
+
+    spacing_small = 40
+    spacing_big = 80
+
+    # Hit area di bawah layar, naik sedikit dari bawah
+    start_y = h - lane_height - 40
+
+    # Total width dari semua tombol dan jarak
+    total_width = (
+        4 * lane_width + 2 * spacing_small + spacing_big
+    )
+    start_x = (w - total_width) // 2
+
     keys = ['d', 'f', 'j', 'k']
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 255, 255)]
+
+    positions_x = [
+        start_x,
+        start_x + lane_width + spacing_small,
+        start_x + 2 * lane_width + spacing_small + spacing_big,
+        start_x + 3 * lane_width + 2 * spacing_small + spacing_big
+    ]
+
     for i in range(4):
-        x1 = 100 + i * 100
-        x2 = x1 + 100
-        cv2.rectangle(frame, (x1, 360), (x2, 440), colors[i], 2)
-        cv2.putText(frame, keys[i], (x1 + 40, 430), cv2.FONT_HERSHEY_SIMPLEX, 1, colors[i], 2)
+        x1 = positions_x[i]
+        y1 = start_y
+        x2 = x1 + lane_width
+        y2 = y1 + lane_height
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colors[i], 2)
+        cv2.putText(frame, keys[i], (x1 + 40, y2 - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, colors[i], 2)
+
 
 def draw_triggers(frame):
     cv2.rectangle(frame, (20, 20), (80, 80), (100, 100, 255), 2)
@@ -47,22 +76,34 @@ def draw_triggers(frame):
     cv2.putText(frame, 'DOWN', (510, 310), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 200, 255), 2)
 
 def get_key_from_position(x, y):
-    if 360 <= y <= 440:
-        if 100 <= x < 200:
-            return 'd'
-        elif 200 <= x < 300:
-            return 'f'
-        elif 300 <= x < 400:
-            return 'j'
-        elif 400 <= x < 500:
-            return 'k'
+    lane_width = 120
+    lane_height = 180
+    spacing_small = 40
+    spacing_big = 80
+    frame_w = 1920
+    frame_h = 1080
+
+    start_y = frame_h - lane_height - 40
+    end_y = start_y + lane_height
+
+    start_x = (frame_w - (4 * lane_width + 2 * spacing_small + spacing_big)) // 2
+    positions_x = [
+        start_x,
+        start_x + lane_width + spacing_small,
+        start_x + 2 * lane_width + spacing_small + spacing_big,
+        start_x + 3 * lane_width + 2 * spacing_small + spacing_big
+    ]
+
+    if start_y <= y <= end_y:
+        for i, x1 in enumerate(positions_x):
+            if x1 <= x < x1 + lane_width:
+                return ['d', 'f', 'j', 'k'][i]
     return None
 
 def main():
-    cap = cv2.VideoCapture(0)
-    cap.set(3, 640)
-    cap.set(4, 480)
-
+    cap = cv2.VideoCapture(1)
+    cap.set(3, 1920)
+    cap.set(4, 1080)
     detector = EfficientHandDetector()
     pTime = 0
 
@@ -97,7 +138,7 @@ def main():
         if not success:
             break
 
-        frame = cv2.flip(frame, 1)
+        frame = cv2.flip(frame, 0)
         result = detector.detect(frame)
         draw_virtual_tiles(frame)
         draw_triggers(frame)
